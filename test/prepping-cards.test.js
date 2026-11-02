@@ -6,7 +6,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { ctx, cards: c, plain, item } = require("./prepping-cards.harness.js");
-const { KINDS, readItems, itemJSON, household, listName, fmtDays, fmtKcal, fmtLitres, esc } = c;
+const { KINDS, readItems, readBatches, itemJSON, household, listName, fmtDays, fmtKcal, fmtLitres, esc } = c;
+const { expiryDate, daysLeft, expiryState, fmtExpiry, byExpiry, nextBatch, addBatch, setBatch } = c;
 
 // One list holding both cards' items, as the README says it may.
 const mixed = () => [
@@ -19,16 +20,22 @@ const mixed = () => [
   item("Bread", ""),
 ];
 
-test("food reads its items, sorted by name, and its own settings", () => {
+test("food reads its items, in the list's order, and its own settings", () => {
   const { rows, settings } = readItems(KINDS.food, mixed());
-  assert.deepEqual(plain(rows.map((r) => r.name)), ["Baked beans", "Rice pudding"]);
-  assert.deepEqual(plain(rows[0]), { uid: "Baked beans", name: "Baked beans", count: 3, portion_g: 415, kcal_per_100g: 80 });
+  assert.deepEqual(plain(rows.map((r) => r.name)), ["Rice pudding", "Baked beans"]);
+  assert.deepEqual(plain(rows[1]), {
+    uid: "Baked beans",
+    name: "Baked beans",
+    batches: [{ n: 1, exp: null, count: 3 }],
+    portion_g: 415,
+    kcal_per_100g: 80,
+  });
   assert.equal(settings.target_days, 21);
 });
 
 test("water reads bottles and its own settings, not food's", () => {
   const { rows, settings } = readItems(KINDS.water, mixed());
-  assert.deepEqual(plain(rows.map((r) => [r.name, r.litres, r.count])), [["Still water, 2 L", 2, 12]]);
+  assert.deepEqual(plain(rows.map((r) => [r.name, r.litres, r.batches])), [["Still water, 2 L", 2, [{ n: 1, exp: null, count: 12 }]]]);
   assert.equal(settings.target_days, 10);
 });
 
@@ -44,7 +51,7 @@ test("counts are whole and never negative; a target is at least 1", () => {
     item("Water stockpile settings", { target_days: 0 }),
   ];
   const { rows, settings } = readItems(KINDS.water, items);
-  assert.deepEqual(plain(rows.map((r) => [r.litres, r.count])), [[1.5, 2], [0, 0]]);
+  assert.deepEqual(plain(rows.map((r) => [r.litres, r.batches])), [[1.5, [{ n: 1, exp: null, count: 2 }]], [0, []]]);
   assert.equal(settings.target_days, 1);
 });
 
@@ -52,16 +59,101 @@ test("a settings item needs the card's exact name", () => {
   assert.equal(readItems(KINDS.food, [item("Stockpile settings", { target_days: 9 })]).settings, null);
 });
 
-test("itemJSON keeps the card's fields and the count, in a stable order", () => {
-  const row = { uid: "u", name: "Beans", portion_g: 415, kcal_per_100g: 80, count: 3, extra: true };
-  assert.equal(itemJSON(KINDS.food, row), '{"portion_g":415,"kcal_per_100g":80,"count":3}');
-  assert.equal(itemJSON(KINDS.water, { litres: 5, count: 4 }), '{"litres":5,"count":4}');
+test("itemJSON keeps the card's fields, the total count and the batches, in a stable order", () => {
+  const batches = [{ n: 1, exp: "2027-03", count: 2 }, { n: 2, exp: null, count: 1 }];
+  const row = { uid: "u", name: "Beans", portion_g: 415, kcal_per_100g: 80, batches, extra: true };
+  assert.equal(
+    itemJSON(KINDS.food, row),
+    '{"portion_g":415,"kcal_per_100g":80,"count":3,"batches":[{"n":1,"exp":"2027-03","count":2},{"n":2,"exp":null,"count":1}]}'
+  );
+  assert.equal(itemJSON(KINDS.water, { litres: 5, batches: [] }), '{"litres":5,"count":0,"batches":[]}');
 });
 
 test("itemJSON round-trips through readItems", () => {
-  const before = { name: "Oats", portion_g: 1000, kcal_per_100g: 375, count: 2 };
+  const before = { name: "Oats", portion_g: 1000, kcal_per_100g: 375, batches: [{ n: 2, exp: "2027-01-15", count: 2 }] };
   const [after] = readItems(KINDS.food, [item("Oats", itemJSON(KINDS.food, before))]).rows;
   assert.deepEqual(plain({ ...after, uid: undefined }), plain({ ...before, uid: undefined }));
+});
+
+test("batches keep their number, a valid expiry and a whole count", () => {
+  const v = {
+    count: 99,
+    batches: [
+      { n: 3, exp: "2027-03", count: 2.9 },
+      { n: 1, exp: "2027-02-30x", count: 1 },
+      { n: 2, exp: "2027-13", count: 4 },
+      { n: 4, exp: "2028-01", count: 0 },
+      "junk",
+    ],
+  };
+  assert.deepEqual(plain(readBatches(v)), [
+    { n: 3, exp: "2027-03", count: 2 },
+    { n: 1, exp: null, count: 1 },
+    { n: 2, exp: null, count: 4 },
+  ]);
+});
+
+test("an item with only a count, as v1.0.0 wrote it, is one undated batch", () => {
+  assert.deepEqual(plain(readBatches({ count: 5 })), [{ n: 1, exp: null, count: 5 }]);
+  assert.deepEqual(plain(readBatches({ count: 0 })), []);
+  assert.deepEqual(plain(readBatches({})), []);
+});
+
+test("a month expiry lasts to the end of that month", () => {
+  assert.equal(expiryDate("2027-02").getDate(), 28);
+  assert.equal(expiryDate("2028-02").getDate(), 29);
+  assert.equal(expiryDate("2027-03-15").getDate(), 15);
+});
+
+test("days left count from today, 0 on the last day", () => {
+  const now = new Date(2026, 10, 2, 18, 30);
+  assert.equal(daysLeft("2026-11-02", now), 0);
+  assert.equal(daysLeft("2026-11", now), 28);
+  assert.equal(daysLeft("2026-10", now), -2);
+});
+
+test("a batch is expired after its date, and soon within 30 days", () => {
+  const now = new Date(2026, 10, 2);
+  assert.equal(expiryState("2026-11-01", now), "expired");
+  assert.equal(expiryState("2026-11-02", now), "soon");
+  assert.equal(expiryState("2026-12-02", now), "soon");
+  assert.equal(expiryState("2026-12-03", now), "");
+  assert.equal(expiryState(null, now), "");
+});
+
+test("expiries show as the month, or the day when one is given", () => {
+  assert.equal(fmtExpiry("2027-03", "en-GB"), "Mar 2027");
+  assert.equal(fmtExpiry("2027-03-15", "en-GB"), "15 Mar 2027");
+});
+
+test("batches sort by expiry, undated last", () => {
+  const sorted = [{ exp: null }, { exp: "2027-05" }, { exp: "2027-01-20" }, { exp: "2027-01" }].sort(byExpiry);
+  assert.deepEqual(plain(sorted.map((b) => b.exp)), ["2027-01-20", "2027-01", "2027-05", null]);
+});
+
+test("a new batch is numbered after the highest, so numbers aren't reused while in use", () => {
+  assert.equal(nextBatch([]), 1);
+  assert.equal(nextBatch([{ n: 1 }, { n: 4 }]), 5);
+});
+
+test("adding a batch joins one with the same expiry, or starts a new one", () => {
+  const batches = [{ n: 1, exp: "2027-03", count: 2 }];
+  assert.deepEqual(plain(addBatch(batches, "2027-03", 3)), [{ n: 1, exp: "2027-03", count: 5 }]);
+  assert.deepEqual(plain(addBatch(batches, "2027-09", 1)), [
+    { n: 1, exp: "2027-03", count: 2 },
+    { n: 2, exp: "2027-09", count: 1 },
+  ]);
+  assert.deepEqual(plain(addBatch([], null, 4)), [{ n: 1, exp: null, count: 4 }]);
+  assert.deepEqual(batches, [{ n: 1, exp: "2027-03", count: 2 }], "the input is left alone");
+});
+
+test("setting a batch changes it, and a count of 0 removes it", () => {
+  const batches = [{ n: 1, exp: "2027-03", count: 2 }, { n: 2, exp: null, count: 1 }];
+  assert.deepEqual(plain(setBatch(batches, 2, "2028-01", 6)), [
+    { n: 1, exp: "2027-03", count: 2 },
+    { n: 2, exp: "2028-01", count: 6 },
+  ]);
+  assert.deepEqual(plain(setBatch(batches, 1, "2027-03", 0)), [{ n: 2, exp: null, count: 1 }]);
 });
 
 test("each item is worth its portion's calories or its litres", () => {

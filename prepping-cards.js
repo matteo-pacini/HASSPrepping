@@ -1,15 +1,15 @@
 // Prepping cards: food stockpile and water stockpile.
 //
 // Each card shows how many days a household's stock lasts, against a target
-// number of days, and lets you count stock up and down. The data lives in a
-// Home Assistant to-do list (a Local To-do list works): one item per food or
-// bottle size, with its figures as JSON in the item's description, plus one
-// settings item per card that holds its target. Each card has its own list,
-// though both can share one.
+// number of days, and keeps the stock in numbered batches by best-before date.
+// The data lives in a Home Assistant to-do list (a Local To-do list works): one
+// item per food or bottle size, with its figures and batches as JSON in the
+// item's description, plus one settings item per card that holds its target.
+// Each card has its own list, though both can share one.
 // Everyone who can see the list sees the same stock.
 
-// Taps on one row are written once they stop for this long; the to-do list
-// stores whole descriptions, so a burst of taps becomes one write.
+// Changes to one row are written once they stop for this long; the to-do list
+// stores whole descriptions, so a burst of changes becomes one write.
 const WRITE_DELAY_MS = 600;
 
 const DEFAULT_LOCALE = "en-GB";
@@ -37,9 +37,13 @@ const STRINGS = {
     target: "Target days",
     day_less: "One day less",
     day_more: "One day more",
-    one_less: "One less {name}",
-    one_more: "One more {name}",
     edit: "Edit {name}",
+    batch: "B{n}",
+    new_batch: "New batch of {name}",
+    edit_batch: "Edit {batch} of {name}",
+    best_before: "Best before",
+    quantity: "Quantity",
+    no_date: "no date",
     add_food: "Add food",
     add_bottles: "Add bottles",
     name: "Name",
@@ -72,9 +76,13 @@ const STRINGS = {
     target: "Zieltage",
     day_less: "Einen Tag weniger",
     day_more: "Einen Tag mehr",
-    one_less: "Eins weniger: {name}",
-    one_more: "Eins mehr: {name}",
     edit: "{name} bearbeiten",
+    batch: "C{n}",
+    new_batch: "Neue Charge: {name}",
+    edit_batch: "{batch} bearbeiten: {name}",
+    best_before: "Mindestens haltbar bis",
+    quantity: "Menge",
+    no_date: "ohne Datum",
     add_food: "Lebensmittel hinzufügen",
     add_bottles: "Flaschen hinzufügen",
     kcal_per_100g: "kcal pro 100 g",
@@ -104,9 +112,13 @@ const STRINGS = {
     target: "Días objetivo",
     day_less: "Un día menos",
     day_more: "Un día más",
-    one_less: "Uno menos: {name}",
-    one_more: "Uno más: {name}",
     edit: "Editar {name}",
+    batch: "L{n}",
+    new_batch: "Nuevo lote: {name}",
+    edit_batch: "Editar {batch}: {name}",
+    best_before: "Consumir preferentemente antes de",
+    quantity: "Cantidad",
+    no_date: "sin fecha",
     add_food: "Añadir comida",
     add_bottles: "Añadir botellas",
     name: "Nombre",
@@ -139,9 +151,13 @@ const STRINGS = {
     target: "Jours visés",
     day_less: "Un jour de moins",
     day_more: "Un jour de plus",
-    one_less: "Un de moins : {name}",
-    one_more: "Un de plus : {name}",
     edit: "Modifier {name}",
+    batch: "L{n}",
+    new_batch: "Nouveau lot : {name}",
+    edit_batch: "Modifier {batch} : {name}",
+    best_before: "À consommer de préférence avant",
+    quantity: "Quantité",
+    no_date: "sans date",
     add_food: "Ajouter un aliment",
     add_bottles: "Ajouter des bouteilles",
     name: "Nom",
@@ -175,9 +191,13 @@ const STRINGS = {
     target: "Giorni obiettivo",
     day_less: "Un giorno in meno",
     day_more: "Un giorno in più",
-    one_less: "Uno in meno: {name}",
-    one_more: "Uno in più: {name}",
     edit: "Modifica {name}",
+    batch: "L{n}",
+    new_batch: "Nuovo lotto: {name}",
+    edit_batch: "Modifica {batch}: {name}",
+    best_before: "Da consumarsi preferibilmente entro",
+    quantity: "Quantità",
+    no_date: "senza data",
     add_food: "Aggiungi cibo",
     add_bottles: "Aggiungi bottiglie",
     name: "Nome",
@@ -208,9 +228,13 @@ const STRINGS = {
     target: "Dias pretendidos",
     day_less: "Menos um dia",
     day_more: "Mais um dia",
-    one_less: "Menos um: {name}",
-    one_more: "Mais um: {name}",
     edit: "Editar {name}",
+    batch: "L{n}",
+    new_batch: "Novo lote: {name}",
+    edit_batch: "Editar {batch}: {name}",
+    best_before: "Consumir de preferência antes de",
+    quantity: "Quantidade",
+    no_date: "sem data",
     add_food: "Adicionar comida",
     add_bottles: "Adicionar garrafas",
     name: "Nome",
@@ -235,6 +259,7 @@ const STRINGS = {
     target: "Meta de dias",
     save: "Salvar",
     loading: "Carregando…",
+    best_before: "Validade",
     save_error: "Não foi possível salvar: {error}",
   },
   nl: {
@@ -248,9 +273,13 @@ const STRINGS = {
     target: "Doel in dagen",
     day_less: "Eén dag minder",
     day_more: "Eén dag meer",
-    one_less: "Eén minder: {name}",
-    one_more: "Eén meer: {name}",
     edit: "{name} bewerken",
+    batch: "P{n}",
+    new_batch: "Nieuwe partij: {name}",
+    edit_batch: "{batch} bewerken: {name}",
+    best_before: "Ten minste houdbaar tot",
+    quantity: "Aantal",
+    no_date: "geen datum",
     add_food: "Voedsel toevoegen",
     add_bottles: "Flessen toevoegen",
     name: "Naam",
@@ -284,9 +313,13 @@ const STRINGS = {
     day_less: "O dzień mniej",
     day_more: "O dzień więcej",
     // Impersonal forms and the colon, as {name} can be any gender or case.
-    one_less: "Jeden mniej: {name}",
-    one_more: "Jeden więcej: {name}",
     edit: "Edytuj: {name}",
+    batch: "P{n}",
+    new_batch: "Nowa partia: {name}",
+    edit_batch: "Edytuj {batch}: {name}",
+    best_before: "Najlepiej spożyć przed",
+    quantity: "Ilość",
+    no_date: "bez daty",
     add_food: "Dodaj jedzenie",
     add_bottles: "Dodaj butelki",
     name: "Nazwa",
@@ -318,9 +351,13 @@ const STRINGS = {
     target: "Mål i dagar",
     day_less: "En dag mindre",
     day_more: "En dag mer",
-    one_less: "En mindre: {name}",
-    one_more: "En till: {name}",
     edit: "Redigera {name}",
+    batch: "P{n}",
+    new_batch: "Nytt parti: {name}",
+    edit_batch: "Redigera {batch}: {name}",
+    best_before: "Bäst före",
+    quantity: "Antal",
+    no_date: "inget datum",
     add_food: "Lägg till mat",
     add_bottles: "Lägg till flaskor",
     name: "Namn",
@@ -351,9 +388,13 @@ const STRINGS = {
     target: "目标天数",
     day_less: "减少一天",
     day_more: "增加一天",
-    one_less: "{name} 减一",
-    one_more: "{name} 加一",
     edit: "编辑 {name}",
+    batch: "批{n}",
+    new_batch: "{name} 新批次",
+    edit_batch: "编辑 {name} 的{batch}",
+    best_before: "最佳食用日期",
+    quantity: "数量",
+    no_date: "无日期",
     add_food: "添加食物",
     add_bottles: "添加瓶装水",
     name: "名称",
@@ -426,6 +467,46 @@ const fmtLitres = (l, locale) => fmtNumber(Math.round(l * 10) / 10, locale, 1) +
 // Rounded down, so the card never promises a day that isn't there.
 const fmtDays = (d, locale) => (d >= 10 ? fmtNumber(Math.floor(d), locale) : fmtNumber(Math.floor(d * 10) / 10, locale, 1));
 
+// A batch expiring within this many days is flagged.
+const SOON_DAYS = 30;
+
+const EXPIRY = /^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$/;
+
+// The last day a batch is good: "2027-03", as tins print it, means the end of
+// March; a full date means that day.
+const expiryDate = (exp) =>
+  exp.length === 7 ? new Date(+exp.slice(0, 4), +exp.slice(5, 7), 0) : new Date(+exp.slice(0, 4), +exp.slice(5, 7) - 1, +exp.slice(8, 10));
+
+// Days from `now` to a batch's expiry: 0 on its last day, negative once past it.
+const daysLeft = (exp, now = new Date()) =>
+  Math.round((expiryDate(exp) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+
+const expiryState = (exp, now) => {
+  if (!exp) return "";
+  const d = daysLeft(exp, now);
+  return d < 0 ? "expired" : d <= SOON_DAYS ? "soon" : "";
+};
+
+const fmtExpiry = (exp, locale) =>
+  expiryDate(exp).toLocaleDateString(locale, exp.length === 7 ? { month: "short", year: "numeric" } : { day: "numeric", month: "short", year: "numeric" });
+
+// Soonest expiry first; undated batches last.
+const byExpiry = (a, b) => (!a.exp || !b.exp ? !a.exp - !b.exp : expiryDate(a.exp) - expiryDate(b.exp));
+
+const totalCount = (batches) => batches.reduce((sum, b) => sum + b.count, 0);
+const nextBatch = (batches) => Math.max(0, ...batches.map((b) => b.n)) + 1;
+
+// Batches after adding `count` expiring on `exp` (null for no date): to the
+// batch with that expiry, or a new one numbered after the rest.
+const addBatch = (batches, exp, count) =>
+  batches.some((b) => b.exp === exp)
+    ? batches.map((b) => (b.exp === exp ? { ...b, count: b.count + count } : b))
+    : [...batches, { n: nextBatch(batches), exp, count }];
+
+// Batches after setting batch `n` to `exp` and `count`; a count of 0 removes it.
+const setBatch = (batches, n, exp, count) =>
+  batches.map((b) => (b.n === n ? { ...b, exp, count } : b)).filter((b) => b.count > 0);
+
 // The name Local To-do needs to create `entity`: it derives the entity id from
 // the list's name, so todo.food_stockpile comes from "Food stockpile".
 const listName = (entity) => {
@@ -434,7 +515,7 @@ const listName = (entity) => {
 };
 
 // What makes each card different. `fields` are the figures an item stores
-// besides its count, in the order the add/edit form asks for them; an item
+// besides its batches, in the order the add/edit form asks for them; an item
 // belongs to the card when its description has every one of them. Text is
 // named by its STRINGS key.
 const KINDS = {
@@ -478,7 +559,25 @@ const KINDS = {
   },
 };
 
-// Splits the to-do items into this card's items and its settings item.
+// An item's batches. An item with only a count, as written before batches,
+// is one undated batch.
+const readBatches = (v) => {
+  if (!Array.isArray(v.batches)) {
+    const count = Math.floor(num(v.count));
+    return count ? [{ n: 1, exp: null, count }] : [];
+  }
+  return v.batches
+    .filter((b) => b && typeof b === "object")
+    .map((b) => ({
+      n: Math.floor(num(b.n, 1)),
+      exp: typeof b.exp === "string" && EXPIRY.test(b.exp) ? b.exp : null,
+      count: Math.floor(num(b.count)),
+    }))
+    .filter((b) => b.count > 0);
+};
+
+// Splits the to-do items into this card's items, in the list's order (so a
+// new one comes last), and its settings item.
 const readItems = (kind, items) => {
   const rows = [];
   let settings = null;
@@ -488,12 +587,11 @@ const readItems = (kind, items) => {
     if (it.summary === kind.settings && "target_days" in v) {
       settings = { uid: it.uid, target_days: num(v.target_days, 1) };
     } else if (kind.fields.every((f) => f.key in v)) {
-      const row = { uid: it.uid, name: it.summary, count: Math.floor(num(v.count)) };
+      const row = { uid: it.uid, name: it.summary, batches: readBatches(v) };
       for (const f of kind.fields) row[f.key] = num(v[f.key]);
       rows.push(row);
     }
   }
-  rows.sort((a, b) => a.name.localeCompare(b.name));
   return { rows, settings };
 };
 
@@ -508,7 +606,9 @@ const household = (kind, config, t = STRINGS.en, locale = DEFAULT_LOCALE) => {
 const itemJSON = (kind, row) => {
   const v = {};
   for (const f of kind.fields) v[f.key] = row[f.key];
-  v.count = row.count;
+  // count is the batches' total, kept for anything that reads only the count.
+  v.count = totalCount(row.batches);
+  v.batches = row.batches;
   return JSON.stringify(v);
 };
 
@@ -560,6 +660,21 @@ const STYLE = `
   .total { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .count { grid-column: 2; grid-row: 2; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
   .count output { min-width: 3ch; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .batches { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-left: 18px; }
+  .batch { font-size: 12px; line-height: 22px; padding: 0 8px; border-radius: 11px; border: 1px solid transparent; background: var(--secondary-background-color, rgba(127, 127, 127, .15)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .batch b { font-weight: 600; margin-right: 4px; color: var(--secondary-text-color); }
+  .batch.soon { border-color: var(--warning-color, #ffb86c); color: var(--warning-color, #ffb86c); }
+  .batch.expired { border-color: var(--error-color, #ff5555); color: var(--error-color, #ff5555); }
+  .batch.soon b, .batch.expired b { color: inherit; }
+  .batch.expired time { text-decoration: line-through; }
+  button.batch { height: auto; min-width: 0; color: inherit; }
+  button.batch:not(.soon):not(.expired) { color: var(--primary-text-color); }
+  button.batch.open { border-color: var(--primary-color); }
+  button.batch.new { color: var(--secondary-text-color); border: 1px dashed var(--divider-color); background: none; }
+  .dating { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding-left: 18px; }
+  .dating input { width: auto; color-scheme: light dark; }
+  .dating input.qty { width: 8ch; }
+  .dating .danger { margin-left: 0; }
   button { font: inherit; color: var(--primary-text-color); background: var(--secondary-background-color, transparent); border: 1px solid var(--divider-color); border-radius: 8px; min-width: 36px; height: 36px; padding: 0 10px; cursor: pointer; }
   button:hover:not(:disabled) { border-color: var(--primary-color); }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
@@ -743,8 +858,8 @@ class StockpileCard extends HTMLElement {
     return this._local.get("target") ?? this._settings?.target_days ?? this._kind.defaultTarget;
   }
 
-  _count(r) {
-    return this._local.get(r.uid) ?? r.count;
+  _batches(r) {
+    return this._local.get(r.uid) ?? r.batches;
   }
 
   // Stores a tapped value after WRITE_DELAY_MS, keeping it on screen meanwhile.
@@ -775,11 +890,11 @@ class StockpileCard extends HTMLElement {
     });
   }
 
-  _setCount(r, n) {
+  _setBatches(r, batches) {
     // The other figures are read when the write happens, in case the item was edited meanwhile.
-    this._queue(r.uid, Math.max(0, n), (v) => {
+    this._queue(r.uid, batches, (v) => {
       const now = this._rows.find((x) => x.uid === r.uid) || r;
-      return this._service("update_item", { item: r.uid, description: itemJSON(this._kind, { ...now, count: v }) });
+      return this._service("update_item", { item: r.uid, description: itemJSON(this._kind, { ...now, batches: v }) });
     });
   }
 
@@ -825,11 +940,11 @@ class StockpileCard extends HTMLElement {
       for (const f of kind.fields) fields[f.key] = num(fd.get(f.key));
       const old = this._rows.find((r) => r.uid === this._editing);
       if (old) {
-        const data = { item: old.uid, description: itemJSON(kind, { ...fields, count: this._count(old) }) };
+        const data = { item: old.uid, description: itemJSON(kind, { ...fields, batches: this._batches(old) }) };
         if (name !== old.name) data.rename = name;
         this._service("update_item", data).catch(() => {});
       } else {
-        this._service("add_item", { item: name, description: itemJSON(kind, { ...fields, count: 0 }) }).catch(() => {});
+        this._service("add_item", { item: name, description: itemJSON(kind, { ...fields, batches: [] }) }).catch(() => {});
       }
       this._closeForm();
     });
@@ -839,12 +954,50 @@ class StockpileCard extends HTMLElement {
       const b = e.target.closest("button[data-target]");
       if (b) this._setTarget(this._target() + Number(b.dataset.target));
     });
-    root.querySelector(".list").addEventListener("click", (e) => {
+    const list = root.querySelector(".list");
+    list.addEventListener("click", (e) => {
       const b = e.target.closest("button");
       const r = b && this._rows.find((x) => x.uid === b.closest("li").dataset.uid);
       if (!r) return;
-      if (b.dataset.step) this._setCount(r, this._count(r) + Number(b.dataset.step));
-      else if (b.classList.contains("edit")) this._openForm(r.uid);
+      const batches = this._batches(r);
+      const editing = this._batchEdit;
+      if (b.classList.contains("edit")) this._openForm(r.uid);
+      else if (b.classList.contains("batch")) {
+        const n = b.dataset.n ? Number(b.dataset.n) : null;
+        if (editing?.uid === r.uid && editing.n === n) {
+          this._batchEdit = null;
+        } else if (n) {
+          const old = batches.find((x) => x.n === n);
+          this._batchEdit = { uid: r.uid, n, exp: old.exp, month: old.exp?.slice(0, 7) ?? "", count: old.count };
+        } else {
+          // A new batch starts at the newest batch's month, the likeliest for a restock.
+          const dated = batches.filter((x) => x.exp);
+          const month = dated.length ? dated.reduce((a, x) => (x.n > a.n ? x : a)).exp.slice(0, 7) : "";
+          this._batchEdit = { uid: r.uid, n: null, month, count: 1 };
+        }
+        this._update();
+        list.querySelector(".dating input")?.focus();
+      } else if (b.classList.contains("batch-save")) {
+        const count = Math.floor(num(editing.count));
+        if (editing.month && !EXPIRY.test(editing.month)) return;
+        // A month picker can't show a full date, so an untouched month keeps the day.
+        const exp = editing.exp?.startsWith(editing.month) && editing.month ? editing.exp : editing.month || null;
+        this._batchEdit = null;
+        if (editing.n) this._setBatches(r, setBatch(batches, editing.n, exp, count));
+        else if (count) this._setBatches(r, addBatch(batches, exp, count));
+        else this._update();
+      } else if (b.classList.contains("batch-remove")) {
+        this._batchEdit = null;
+        this._setBatches(r, setBatch(batches, editing.n, editing.exp, 0));
+      } else if (b.classList.contains("batch-cancel")) {
+        this._batchEdit = null;
+        this._update();
+      }
+    });
+    // What's typed in the batch form survives the row being rebuilt by an update.
+    list.addEventListener("input", (e) => {
+      const field = e.target.closest(".dating") && e.target.name;
+      if (field && this._batchEdit) this._batchEdit[field] = e.target.value;
     });
   }
 
@@ -915,9 +1068,11 @@ class StockpileCard extends HTMLElement {
     const target = this._target();
     const goal = target * perDay;
     const rows = this._rows.map((r, i) => {
-      const n = this._count(r);
-      return { r, n, amount: n * kind.each(r), color: PALETTE[i % PALETTE.length] };
+      const batches = this._batches(r);
+      const n = totalCount(batches);
+      return { r, n, batches, amount: n * kind.each(r), color: PALETTE[i % PALETTE.length] };
     });
+    const now = new Date();
     const total = rows.reduce((sum, x) => sum + x.amount, 0);
     const days = total / perDay;
     // Segments fill the bar up to the target; past it, they share the bar in proportion.
@@ -943,30 +1098,51 @@ class StockpileCard extends HTMLElement {
       </div>
       ${this._error ? `<div class="error">${esc(this._error)}</div>` : ""}`;
     if (targetFocus) summary.querySelector(`button[data-target="${targetFocus}"]`)?.focus();
-    const refocus = focused?.closest?.("li") && [focused.closest("li").dataset.uid, focused.dataset.step ?? "edit"];
+    const refocus = focused?.classList?.contains("edit") && focused.closest("li").dataset.uid;
+    const editing = this._batchEdit;
     list.innerHTML = rows.length
       ? rows
           .map(
-            ({ r, n, amount, color }) => `
+            ({ r, n, batches, amount, color }) => `
       <li data-uid="${esc(r.uid)}">
         <div class="name"><span class="dot" style="background:${color}"></span><span>${esc(r.name)}</span></div>
         <div class="total">${fmt(amount)} · ${esc(fill(t.days_short, { n: fmtDays(amount / perDay, locale) }))}</div>
         <div class="sub">${esc(fill(t.each, { amount: fmt(kind.each(r)) }))}</div>
         <div class="count">
           <button type="button" class="edit" aria-label="${esc(fill(t.edit, { name: r.name }))}"><ha-icon icon="mdi:pencil"></ha-icon></button>
-          <button type="button" data-step="-1" aria-label="${esc(fill(t.one_less, { name: r.name }))}" ${n === 0 ? "disabled" : ""}>−</button>
           <output>${fmtNumber(n, locale)}</output>
-          <button type="button" data-step="1" aria-label="${esc(fill(t.one_more, { name: r.name }))}">+</button>
         </div>
+        <div class="batches">
+          ${[...batches]
+            .sort(byExpiry)
+            .map((b) => {
+              const label = fill(t.batch, { n: b.n });
+              const open = editing?.uid === r.uid && editing.n === b.n && "open";
+              const cls = ["batch", expiryState(b.exp, now), open].filter(Boolean).join(" ");
+              return `<button type="button" class="${cls}" data-n="${b.n}" aria-label="${esc(fill(t.edit_batch, { batch: label, name: r.name }))}"><b>${esc(label)}</b>${fmtNumber(b.count, locale)} · ${
+                b.exp ? `<time datetime="${b.exp}">${esc(fmtExpiry(b.exp, locale))}</time>` : esc(t.no_date)
+              }</button>`;
+            })
+            .join("")}
+          <button type="button" class="batch new" aria-label="${esc(fill(t.new_batch, { name: r.name }))}">+ ${esc(fill(t.batch, { n: nextBatch(batches) }))}</button>
+        </div>
+        ${
+          editing?.uid === r.uid
+            ? `<div class="dating">
+          <label><span>${esc(t.best_before)}</span><input name="month" type="month" value="${esc(editing.month)}"></label>
+          <label><span>${esc(t.quantity)}</span><input name="count" type="number" min="${editing.n ? 0 : 1}" step="1" value="${esc(editing.count)}" class="qty"></label>
+          <button type="button" class="primary batch-save">${esc(editing.n ? t.save : t.add)}</button>
+          <button type="button" class="batch-cancel">${esc(t.cancel)}</button>
+          ${editing.n ? `<button type="button" class="danger batch-remove">${esc(t.remove)}</button>` : ""}
+        </div>`
+            : ""
+        }
       </li>`,
           )
           .join("")
       : `<li class="empty">${esc(t[kind.empty])}</li>`;
     // Rows are rebuilt on each update, so put keyboard focus back on the button that was pressed.
-    if (refocus) {
-      const li = [...list.children].find((x) => x.dataset.uid === refocus[0]);
-      li?.querySelector(refocus[1] === "edit" ? "button.edit" : `button[data-step="${refocus[1]}"]`)?.focus();
-    }
+    if (refocus) [...list.children].find((x) => x.dataset.uid === refocus)?.querySelector("button.edit")?.focus();
   }
 }
 

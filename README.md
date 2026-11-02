@@ -1,6 +1,6 @@
 # Prepping Cards
 
-Two Home Assistant dashboard cards for a household stockpile: one for food, one for water. Each shows how many days the stock lasts for the people you set, against a target number of days, and lets you count items up and down. The stock lives in Home Assistant to-do lists, so everyone in the house sees the same numbers.
+Two Home Assistant dashboard cards for a household stockpile: one for food, one for water. Each shows how many days the stock lasts for the people you set, against a target number of days, and keeps each item in numbered batches by best-before date, so you can see what to eat first. The stock lives in Home Assistant to-do lists, so everyone in the house sees the same numbers.
 
 ![Food stockpile card on a dark theme](images/food.png)
 
@@ -8,7 +8,7 @@ Two Home Assistant dashboard cards for a household stockpile: one for food, one 
 | --- | --- |
 | ![Food card on a light theme](images/food-light.png) | ![Water card with 10 of 7 days](images/water.png) |
 
-On a phone, long names wrap and the counters stay in reach:
+On a phone, long names and batches wrap:
 
 <p>
   <img src="images/mobile.png" alt="Food card on a phone, dark theme" width="250">
@@ -62,8 +62,14 @@ women: 1
 Everything else happens on the card:
 
 - **− and +** beside the big number change the target number of days. It starts at 30 for food and 7 for water. The number turns green once the stock covers the target.
-- **− and +** on a row count that item up or down.
-- **Add food** or **Add bottles** opens a form. Food asks for the portion in grams and the calories per 100 g from the label; bottles ask for the litres each holds. The pencil on a row edits or removes it.
+- **Add food** or **Add bottles** opens a form. Food asks for the portion in grams and the calories per 100 g from the label; bottles ask for the litres each holds. A new item goes at the bottom of the list. The pencil on a row edits or removes it.
+- **Batches** sit under each row, soonest to expire first: *B2 · 6 · Mar 2027* is batch 2, six of them, best before the end of March 2027. A batch turns amber within 30 days of its date and red once past it. The number beside the pencil is the row's total.
+- **+ B3** adds a batch: its best-before month and how many. A batch with the same month gets them instead.
+- **Tap a batch** to change its date or how many are left, or to remove it. Setting it to 0 removes it too.
+
+![Editing a batch of baked beans](images/batch-edit.png)
+
+A batch keeps its number until it's gone, so you can write it on the tins. Numbers are per item, and a new batch takes the next one up.
 
 ![Adding a food](images/add-food.png)
 
@@ -99,7 +105,7 @@ For example, two men and one woman need 7,000 kcal and 12 L a day, so a 30-day f
 
 The cards' own text is available in English, Dutch, French, German, Italian, Polish, Portuguese, Brazilian Portuguese, Simplified Chinese, Spanish and Swedish. It needs no setup: the cards use `locale` if set, otherwise your Home Assistant language.
 
-A regional locale uses its regional text if there is one, then its language, so `pt-BR` gets Brazilian Portuguese and `de-AT` gets German. Traditional Chinese is not translated yet, so it shows English rather than Simplified. Anything untranslated falls back to English. Numbers always follow the locale, whichever language the text is in. The names of your foods and bottles are shown as you typed them.
+A regional locale uses its regional text if there is one, then its language, so `pt-BR` gets Brazilian Portuguese and `de-AT` gets German. Traditional Chinese is not translated yet, so it shows English rather than Simplified. Anything untranslated falls back to English. Numbers always follow the locale, whichever language the text is in. The names of your foods and bottles are shown as you typed them. Batch labels use the language's word for a batch, so B2 is C2 in German (*Charge*) and L2 in Italian (*lotto*); the number is the same in every language.
 
 To change individual strings, use `strings`:
 
@@ -112,23 +118,26 @@ strings:
     other: "{n} adult men"
 ```
 
-Keys: `food`, `water`, `of_days`, `days_short`, `per_day`, `each`, `men`, `women`, `target`, `day_less`, `day_more`, `one_less`, `one_more`, `edit`, `add_food`, `add_bottles`, `name`, `portion`, `kcal_per_100g`, `litres_each`, `add`, `save`, `cancel`, `remove`, `empty_food`, `empty_water`, `loading`, `nobody`, `missing`, `create`, `ask_admin`, `save_error`, `create_error`. Keep the `{n}`, `{amount}`, `{name}`, `{entity}` and `{error}` placeholders. `of_days`, `men` and `women` change with the number: give one string for every number, or a form per [plural category](https://cldr.unicode.org/index/cldr-spec/plural-rules) (`one`, `few`, `many`, `other`, …) with `other` as the fallback.
+Keys: `food`, `water`, `of_days`, `days_short`, `per_day`, `each`, `men`, `women`, `target`, `day_less`, `day_more`, `edit`, `batch`, `new_batch`, `edit_batch`, `best_before`, `quantity`, `no_date`, `add_food`, `add_bottles`, `name`, `portion`, `kcal_per_100g`, `litres_each`, `add`, `save`, `cancel`, `remove`, `empty_food`, `empty_water`, `loading`, `nobody`, `missing`, `create`, `ask_admin`, `save_error`, `create_error`. Keep the `{n}`, `{amount}`, `{name}`, `{batch}`, `{entity}` and `{error}` placeholders. `of_days`, `men` and `women` change with the number: give one string for every number, or a form per [plural category](https://cldr.unicode.org/index/cldr-spec/plural-rules) (`one`, `few`, `many`, `other`, …) with `other` as the fallback.
 
 ## How the data is stored
 
-Each food or bottle size is one to-do item. The item's name is what the card shows, and its description holds the figures as JSON:
+Each food or bottle size is one to-do item. The item's name is what the card shows, and its description holds the figures and the batches as JSON:
 
 ```json
-{"portion_g": 300, "kcal_per_100g": 439, "count": 4}
+{"portion_g": 300, "kcal_per_100g": 439, "count": 4,
+ "batches": [{"n": 1, "exp": "2027-03", "count": 3}, {"n": 2, "exp": "2027-09-15", "count": 1}]}
 ```
 
 ```json
-{"litres": 2, "count": 16}
+{"litres": 2, "count": 16, "batches": [{"n": 1, "exp": "2028-06", "count": 16}]}
 ```
+
+`exp` is the best-before date: a month (`2027-03`, good to the end of March) or a day (`2027-09-15`), or `null` for none. `count` is the batches' total, kept for anything that reads only that. An item from version 1.0, with a `count` and no `batches`, shows as one batch with no date.
 
 One more item per card, *Food stockpile settings* or *Water stockpile settings*, holds its target: `{"target_days": 30}`. Items whose description is none of these are left alone and not shown, so both cards can share one list.
 
-Items can be renamed in the to-do list itself. Edit a description there only if it stays valid JSON; otherwise the card stops showing that item.
+Items can be renamed or reordered in the to-do list itself; the card shows them in the list's order. Edit a description there only if it stays valid JSON; otherwise the card stops showing that item.
 
 ## License
 

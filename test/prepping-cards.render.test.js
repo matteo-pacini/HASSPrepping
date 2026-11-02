@@ -37,9 +37,66 @@ test("the food summary shows days, totals and the household in English", () => {
   assert.match(el.part(".summary").innerHTML, /class="days low"/);
 });
 
-test("food rows show calories each, totals and days", () => {
+test("food rows show calories each, totals, days and their batches", () => {
   const el = make(FOOD, { entity: "todo.food_stockpile" }, hass(pantry()));
-  assert.equal(list(el), "Crackers 5,268 kcal · 1.1 d 1,317 kcal each − 4 + Tuna 2,088 kcal · 0.4 d 116 kcal each − 18 +");
+  assert.equal(
+    list(el),
+    "Crackers 5,268 kcal · 1.1 d 1,317 kcal each 4 B1 4 · no date + B2 Tuna 2,088 kcal · 0.4 d 116 kcal each 18 B1 18 · no date + B2"
+  );
+});
+
+test("rows keep the list's order", () => {
+  const lists = pantry();
+  lists["todo.food_stockpile"].push(item("Apricots", { portion_g: 200, kcal_per_100g: 50, batches: [] }));
+  const el = make(FOOD, { entity: "todo.food_stockpile" }, hass(lists));
+  assert.match(list(el), /^Crackers .* Tuna .* Apricots /);
+});
+
+// A tin of beans in three batches: one long expired, one undated, one far off.
+const beans = () => ({
+  "todo.food_stockpile": [
+    item("Beans", {
+      portion_g: 400,
+      kcal_per_100g: 100,
+      batches: [
+        { n: 1, exp: "2999-12", count: 3 },
+        { n: 2, exp: null, count: 1 },
+        { n: 3, exp: "2001-05-04", count: 2 },
+      ],
+    }),
+  ],
+});
+
+test("batches show soonest first, with the expired one marked", () => {
+  const el = make(FOOD, { entity: "todo.food_stockpile" }, hass(beans()));
+  assert.equal(list(el), "Beans 2,400 kcal · 0.5 d 400 kcal each 6 B3 2 · 4 May 2001 B1 3 · Dec 2999 B2 1 · no date + B4");
+  assert.match(el.part(".list").innerHTML, /class="batch expired" data-n="3"/);
+  assert.match(el.part(".list").innerHTML, /<time datetime="2999-12">/);
+});
+
+test("an open batch shows its date and quantity to edit, and Remove", () => {
+  const el = make(FOOD, { entity: "todo.food_stockpile" }, hass(beans()));
+  el._batchEdit = { uid: "Beans", n: 1, exp: "2999-12", month: "2999-12", count: 3 };
+  el._update();
+  const html = el.part(".list").innerHTML;
+  assert.match(html, /class="batch open" data-n="1"/);
+  assert.match(html, /<input name="month" type="month" value="2999-12">/);
+  assert.match(html, /<input name="count" type="number" min="0"[^>]*value="3"/);
+  assert.match(text(html), /Best before Quantity Save Cancel Remove$/);
+});
+
+test("a new batch asks for at least one, and has no Remove", () => {
+  const el = make(FOOD, { entity: "todo.food_stockpile" }, hass(beans()));
+  el._batchEdit = { uid: "Beans", n: null, month: "", count: 1 };
+  el._update();
+  const html = el.part(".list").innerHTML;
+  assert.match(html, /<input name="count" type="number" min="1"/);
+  assert.match(text(html), /Best before Quantity Add Cancel$/);
+});
+
+test("batch labels are translated", () => {
+  const el = make(FOOD, { entity: "todo.food_stockpile", locale: "de-DE" }, hass(beans()));
+  assert.match(list(el), / C3 2 · 4\. Mai 2001 C1 3 · Dez\. 2999 C2 1 · ohne Datum \+ C4$/);
 });
 
 test("water past its target is marked met", () => {
@@ -75,7 +132,7 @@ test("nobody to feed is an error, not a division by zero", () => {
 test("the card speaks Home Assistant's language", () => {
   const el = make(FOOD, { entity: "todo.food_stockpile" }, hass(pantry(), { language: "it" }));
   assert.equal(summary(el), "Cibo 1,6 su 30 giorni 7.356 kcal / 135.000 kcal 1 uomo · 1 donna · 4.500 kcal al giorno − 30 +");
-  assert.match(list(el), /^Crackers 5\.268 kcal · 1,1 gg 1\.317 kcal cad\./);
+  assert.match(list(el), /^Crackers 5\.268 kcal · 1,1 gg 1\.317 kcal cad\. 4 L1 4 · senza data \+ L2/);
 });
 
 test("the card's locale wins over Home Assistant's", () => {
