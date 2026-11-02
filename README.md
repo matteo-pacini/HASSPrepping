@@ -43,7 +43,7 @@ To create a list by hand: **Settings → Devices & services → Add integration 
 
 ## Usage
 
-Add the cards from the dashboard editor and fill them in there, or write the YAML yourself.
+Add the cards from the dashboard editor and fill them in there, or write the YAML yourself. The visual editor has the list, the title, the number of men and women side by side, and the locale. Its labels are in English.
 
 ```yaml
 type: custom:food-stockpile-card
@@ -73,8 +73,10 @@ Everything else happens on the card:
 | --- | --- | --- |
 | `entity` | required | The to-do list that holds the stock |
 | `title` | `Food` or `Water` | Card title |
-| `men` | `1` | Adult men to feed |
-| `women` | `1` | Adult women to feed |
+| `men` | `1` | Adult men to feed, a whole number |
+| `women` | `1` | Adult women to feed, a whole number |
+| `locale` | Home Assistant's | BCP 47 tag, such as `de-DE`, for the card's text and numbers |
+| `strings` | translated | Overrides for the card's own text, see below |
 
 ## Household
 
@@ -86,6 +88,31 @@ Set `men` and `women` to the adults in the household. The card adds up what they
 | Water | 4 L | 4 L | About a US gallon a day for drinking and basic hygiene, as FEMA advises |
 
 For example, two men and one woman need 7,000 kcal and 12 L a day, so a 30-day food target is 210,000 kcal. Setting both to `0` makes the card ask for at least one person.
+
+## Languages
+
+<p>
+  <img src="images/lang-it.png" alt="Food card in Italian" width="250">
+  <img src="images/lang-de.png" alt="Food card in German for two men and two women" width="250">
+  <img src="images/lang-pt-BR.png" alt="Food card in Brazilian Portuguese for two women" width="250">
+</p>
+
+The cards' own text is available in English, Dutch, French, German, Italian, Polish, Portuguese, Brazilian Portuguese, Simplified Chinese, Spanish and Swedish. It needs no setup: the cards use `locale` if set, otherwise your Home Assistant language.
+
+A regional locale uses its regional text if there is one, then its language, so `pt-BR` gets Brazilian Portuguese and `de-AT` gets German. Traditional Chinese is not translated yet, so it shows English rather than Simplified. Anything untranslated falls back to English. Numbers always follow the locale, whichever language the text is in. The names of your foods and bottles are shown as you typed them.
+
+To change individual strings, use `strings`:
+
+```yaml
+strings:
+  food: Pantry
+  per_day: "{amount} every day"
+  men:
+    one: "{n} adult man"
+    other: "{n} adult men"
+```
+
+Keys: `food`, `water`, `of_days`, `days_short`, `per_day`, `each`, `men`, `women`, `target`, `day_less`, `day_more`, `one_less`, `one_more`, `edit`, `add_food`, `add_bottles`, `name`, `portion`, `kcal_per_100g`, `litres_each`, `add`, `save`, `cancel`, `remove`, `empty_food`, `empty_water`, `loading`, `nobody`, `missing`, `create`, `ask_admin`, `save_error`, `create_error`. Keep the `{n}`, `{amount}`, `{name}`, `{entity}` and `{error}` placeholders. `of_days`, `men` and `women` change with the number: give one string for every number, or a form per [plural category](https://cldr.unicode.org/index/cldr-spec/plural-rules) (`one`, `few`, `many`, `other`, …) with `other` as the fallback.
 
 ## How the data is stored
 

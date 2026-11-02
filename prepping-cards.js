@@ -12,7 +12,396 @@
 // stores whole descriptions, so a burst of taps becomes one write.
 const WRITE_DELAY_MS = 600;
 
+const DEFAULT_LOCALE = "en-GB";
+
 const PALETTE = ["#ffb86c", "#8be9fd", "#ff79c6", "#50fa7b", "#bd93f9", "#f1fa8c", "#ff5555", "#6272a4"];
+
+// Interface text by language, or by language-Script or language-REGION holding
+// only what differs from that language. Each picks up whatever it lacks from
+// `en`, so a new key only has to be added there. Chinese is keyed by script
+// alone, so Traditional stays English rather than showing Simplified.
+// `{n}`, `{amount}`, `{name}`, `{entity}` and `{error}` are filled in by fill();
+// they are templates because word order differs between languages. A value
+// that is a mapping has a form per plural category (see Intl.PluralRules);
+// `other` is the fallback.
+const STRINGS = {
+  en: {
+    food: "Food",
+    water: "Water",
+    of_days: { one: "of {n} day", other: "of {n} days" },
+    days_short: "{n} d",
+    per_day: "{amount} a day",
+    each: "{amount} each",
+    men: { one: "{n} man", other: "{n} men" },
+    women: { one: "{n} woman", other: "{n} women" },
+    target: "Target days",
+    day_less: "One day less",
+    day_more: "One day more",
+    one_less: "One less {name}",
+    one_more: "One more {name}",
+    edit: "Edit {name}",
+    add_food: "Add food",
+    add_bottles: "Add bottles",
+    name: "Name",
+    portion: "Portion (g)",
+    kcal_per_100g: "kcal per 100 g",
+    litres_each: "Litres each",
+    add: "Add",
+    save: "Save",
+    cancel: "Cancel",
+    remove: "Remove",
+    empty_food: "No food yet. Add one below.",
+    empty_water: "No water yet. Add a bottle size below.",
+    loading: "Loading…",
+    nobody: "Set at least one man or woman.",
+    missing: "{entity} doesn't exist yet.",
+    create: "Create the “{name}” list",
+    ask_admin: "Ask an admin to add a Local To-do list called “{name}”.",
+    save_error: "Couldn't save: {error}",
+    create_error: "Couldn't create the list: {error}",
+  },
+  de: {
+    food: "Lebensmittel",
+    water: "Wasser",
+    of_days: { one: "von {n} Tag", other: "von {n} Tagen" },
+    days_short: "{n} T",
+    per_day: "{amount} pro Tag",
+    each: "je {amount}",
+    men: { one: "{n} Mann", other: "{n} Männer" },
+    women: { one: "{n} Frau", other: "{n} Frauen" },
+    target: "Zieltage",
+    day_less: "Einen Tag weniger",
+    day_more: "Einen Tag mehr",
+    one_less: "Eins weniger: {name}",
+    one_more: "Eins mehr: {name}",
+    edit: "{name} bearbeiten",
+    add_food: "Lebensmittel hinzufügen",
+    add_bottles: "Flaschen hinzufügen",
+    kcal_per_100g: "kcal pro 100 g",
+    litres_each: "Liter pro Stück",
+    add: "Hinzufügen",
+    save: "Speichern",
+    cancel: "Abbrechen",
+    remove: "Entfernen",
+    empty_food: "Noch keine Lebensmittel. Unten hinzufügen.",
+    empty_water: "Noch kein Wasser. Unten eine Flaschengröße hinzufügen.",
+    loading: "Wird geladen…",
+    nobody: "Mindestens einen Mann oder eine Frau angeben.",
+    missing: "{entity} gibt es noch nicht.",
+    create: "Liste „{name}“ anlegen",
+    ask_admin: "Bitte einen Admin, eine Local-To-do-Liste namens „{name}“ anzulegen.",
+    save_error: "Speichern fehlgeschlagen: {error}",
+    create_error: "Liste konnte nicht angelegt werden: {error}",
+  },
+  es: {
+    food: "Comida",
+    water: "Agua",
+    of_days: { one: "de {n} día", other: "de {n} días" },
+    per_day: "{amount} al día",
+    each: "{amount} por unidad",
+    men: { one: "{n} hombre", other: "{n} hombres" },
+    women: { one: "{n} mujer", other: "{n} mujeres" },
+    target: "Días objetivo",
+    day_less: "Un día menos",
+    day_more: "Un día más",
+    one_less: "Uno menos: {name}",
+    one_more: "Uno más: {name}",
+    edit: "Editar {name}",
+    add_food: "Añadir comida",
+    add_bottles: "Añadir botellas",
+    name: "Nombre",
+    portion: "Ración (g)",
+    kcal_per_100g: "kcal por 100 g",
+    litres_each: "Litros por unidad",
+    add: "Añadir",
+    save: "Guardar",
+    cancel: "Cancelar",
+    remove: "Eliminar",
+    empty_food: "Aún no hay comida. Añade algo abajo.",
+    empty_water: "Aún no hay agua. Añade un tamaño de botella abajo.",
+    loading: "Cargando…",
+    nobody: "Indica al menos un hombre o una mujer.",
+    missing: "{entity} aún no existe.",
+    create: "Crear la lista «{name}»",
+    ask_admin: "Pide a un administrador que añada una lista de Local To-do llamada «{name}».",
+    save_error: "No se pudo guardar: {error}",
+    create_error: "No se pudo crear la lista: {error}",
+  },
+  fr: {
+    food: "Nourriture",
+    water: "Eau",
+    of_days: { one: "sur {n} jour", other: "sur {n} jours" },
+    days_short: "{n} j",
+    per_day: "{amount} par jour",
+    each: "{amount} l'unité",
+    men: { one: "{n} homme", other: "{n} hommes" },
+    women: { one: "{n} femme", other: "{n} femmes" },
+    target: "Jours visés",
+    day_less: "Un jour de moins",
+    day_more: "Un jour de plus",
+    one_less: "Un de moins : {name}",
+    one_more: "Un de plus : {name}",
+    edit: "Modifier {name}",
+    add_food: "Ajouter un aliment",
+    add_bottles: "Ajouter des bouteilles",
+    name: "Nom",
+    kcal_per_100g: "kcal pour 100 g",
+    litres_each: "Litres par unité",
+    add: "Ajouter",
+    save: "Enregistrer",
+    cancel: "Annuler",
+    remove: "Supprimer",
+    empty_food: "Aucun aliment pour l'instant. Ajoutez-en un ci-dessous.",
+    empty_water: "Pas encore d'eau. Ajoutez une taille de bouteille ci-dessous.",
+    loading: "Chargement…",
+    nobody: "Indiquez au moins un homme ou une femme.",
+    missing: "{entity} n'existe pas encore.",
+    create: "Créer la liste « {name} »",
+    ask_admin: "Demandez à un administrateur d'ajouter une liste Local To-do nommée « {name} ».",
+    save_error: "Échec de l'enregistrement : {error}",
+    create_error: "Impossible de créer la liste : {error}",
+  },
+  it: {
+    food: "Cibo",
+    water: "Acqua",
+    of_days: { one: "su {n} giorno", other: "su {n} giorni" },
+    // "gg", not "g", which beside an amount reads as grams.
+    days_short: "{n} gg",
+    per_day: "{amount} al giorno",
+    // "cad.", as on Italian labels: "ciascuno" would have to agree with the item.
+    each: "{amount} cad.",
+    men: { one: "{n} uomo", other: "{n} uomini" },
+    women: { one: "{n} donna", other: "{n} donne" },
+    target: "Giorni obiettivo",
+    day_less: "Un giorno in meno",
+    day_more: "Un giorno in più",
+    one_less: "Uno in meno: {name}",
+    one_more: "Uno in più: {name}",
+    edit: "Modifica {name}",
+    add_food: "Aggiungi cibo",
+    add_bottles: "Aggiungi bottiglie",
+    name: "Nome",
+    portion: "Porzione (g)",
+    litres_each: "Litri per unità",
+    add: "Aggiungi",
+    save: "Salva",
+    cancel: "Annulla",
+    remove: "Rimuovi",
+    empty_food: "Ancora nessun cibo. Aggiungine uno qui sotto.",
+    empty_water: "Ancora niente acqua. Aggiungi un formato di bottiglia qui sotto.",
+    loading: "Caricamento…",
+    nobody: "Indica almeno un uomo o una donna.",
+    missing: "{entity} non esiste ancora.",
+    create: "Crea la lista “{name}”",
+    ask_admin: "Chiedi a un amministratore di aggiungere una lista Local To-do chiamata “{name}”.",
+    save_error: "Impossibile salvare: {error}",
+    create_error: "Impossibile creare la lista: {error}",
+  },
+  pt: {
+    food: "Comida",
+    water: "Água",
+    of_days: { one: "de {n} dia", other: "de {n} dias" },
+    per_day: "{amount} por dia",
+    each: "{amount} cada",
+    men: { one: "{n} homem", other: "{n} homens" },
+    women: { one: "{n} mulher", other: "{n} mulheres" },
+    target: "Dias pretendidos",
+    day_less: "Menos um dia",
+    day_more: "Mais um dia",
+    one_less: "Menos um: {name}",
+    one_more: "Mais um: {name}",
+    edit: "Editar {name}",
+    add_food: "Adicionar comida",
+    add_bottles: "Adicionar garrafas",
+    name: "Nome",
+    portion: "Porção (g)",
+    kcal_per_100g: "kcal por 100 g",
+    litres_each: "Litros por unidade",
+    add: "Adicionar",
+    save: "Guardar",
+    cancel: "Cancelar",
+    remove: "Remover",
+    empty_food: "Ainda sem comida. Adicione abaixo.",
+    empty_water: "Ainda sem água. Adicione um tamanho de garrafa abaixo.",
+    loading: "A carregar…",
+    nobody: "Indique pelo menos um homem ou uma mulher.",
+    missing: "{entity} ainda não existe.",
+    create: "Criar a lista “{name}”",
+    ask_admin: "Peça a um administrador para adicionar uma lista Local To-do chamada “{name}”.",
+    save_error: "Não foi possível guardar: {error}",
+    create_error: "Não foi possível criar a lista: {error}",
+  },
+  "pt-BR": {
+    target: "Meta de dias",
+    save: "Salvar",
+    loading: "Carregando…",
+    save_error: "Não foi possível salvar: {error}",
+  },
+  nl: {
+    food: "Voedsel",
+    water: "Water",
+    of_days: { one: "van {n} dag", other: "van {n} dagen" },
+    per_day: "{amount} per dag",
+    each: "{amount} per stuk",
+    men: { one: "{n} man", other: "{n} mannen" },
+    women: { one: "{n} vrouw", other: "{n} vrouwen" },
+    target: "Doel in dagen",
+    day_less: "Eén dag minder",
+    day_more: "Eén dag meer",
+    one_less: "Eén minder: {name}",
+    one_more: "Eén meer: {name}",
+    edit: "{name} bewerken",
+    add_food: "Voedsel toevoegen",
+    add_bottles: "Flessen toevoegen",
+    name: "Naam",
+    portion: "Portie (g)",
+    litres_each: "Liter per stuk",
+    add: "Toevoegen",
+    save: "Opslaan",
+    cancel: "Annuleren",
+    remove: "Verwijderen",
+    empty_food: "Nog geen voedsel. Voeg hieronder iets toe.",
+    empty_water: "Nog geen water. Voeg hieronder een flesmaat toe.",
+    loading: "Laden…",
+    nobody: "Vul minstens één man of vrouw in.",
+    missing: "{entity} bestaat nog niet.",
+    create: "Lijst ‘{name}’ aanmaken",
+    ask_admin: "Vraag een beheerder om een Local To-do-lijst met de naam ‘{name}’ toe te voegen.",
+    save_error: "Opslaan mislukt: {error}",
+    create_error: "Lijst aanmaken mislukt: {error}",
+  },
+  pl: {
+    food: "Jedzenie",
+    water: "Woda",
+    // "other" covers fractions; the target is always whole.
+    of_days: { one: "z {n} dnia", few: "z {n} dni", many: "z {n} dni", other: "z {n} dnia" },
+    days_short: "{n} dn.",
+    per_day: "{amount} dziennie",
+    each: "{amount}/szt.",
+    men: { one: "{n} mężczyzna", few: "{n} mężczyźni", many: "{n} mężczyzn", other: "{n} mężczyzny" },
+    women: { one: "{n} kobieta", few: "{n} kobiety", many: "{n} kobiet", other: "{n} kobiety" },
+    target: "Docelowa liczba dni",
+    day_less: "O dzień mniej",
+    day_more: "O dzień więcej",
+    // Impersonal forms and the colon, as {name} can be any gender or case.
+    one_less: "Jeden mniej: {name}",
+    one_more: "Jeden więcej: {name}",
+    edit: "Edytuj: {name}",
+    add_food: "Dodaj jedzenie",
+    add_bottles: "Dodaj butelki",
+    name: "Nazwa",
+    portion: "Porcja (g)",
+    kcal_per_100g: "kcal na 100 g",
+    litres_each: "Litry na sztukę",
+    add: "Dodaj",
+    save: "Zapisz",
+    cancel: "Anuluj",
+    remove: "Usuń",
+    empty_food: "Brak jedzenia. Dodaj je poniżej.",
+    empty_water: "Brak wody. Dodaj rozmiar butelki poniżej.",
+    loading: "Ładowanie…",
+    nobody: "Podaj co najmniej jednego mężczyznę lub jedną kobietę.",
+    missing: "{entity} jeszcze nie istnieje.",
+    create: "Utwórz listę „{name}”",
+    ask_admin: "Poproś administratora o dodanie listy Local To-do o nazwie „{name}”.",
+    save_error: "Nie udało się zapisać: {error}",
+    create_error: "Nie udało się utworzyć listy: {error}",
+  },
+  sv: {
+    food: "Mat",
+    water: "Vatten",
+    of_days: { one: "av {n} dag", other: "av {n} dagar" },
+    per_day: "{amount} per dag",
+    each: "{amount}/st",
+    men: { one: "{n} man", other: "{n} män" },
+    women: { one: "{n} kvinna", other: "{n} kvinnor" },
+    target: "Mål i dagar",
+    day_less: "En dag mindre",
+    day_more: "En dag mer",
+    one_less: "En mindre: {name}",
+    one_more: "En till: {name}",
+    edit: "Redigera {name}",
+    add_food: "Lägg till mat",
+    add_bottles: "Lägg till flaskor",
+    name: "Namn",
+    litres_each: "Liter per styck",
+    add: "Lägg till",
+    save: "Spara",
+    cancel: "Avbryt",
+    remove: "Ta bort",
+    empty_food: "Ingen mat än. Lägg till nedan.",
+    empty_water: "Inget vatten än. Lägg till en flaskstorlek nedan.",
+    loading: "Laddar…",
+    nobody: "Ange minst en man eller en kvinna.",
+    missing: "{entity} finns inte än.",
+    create: "Skapa listan ”{name}”",
+    ask_admin: "Be en administratör lägga till en Local To-do-lista som heter ”{name}”.",
+    save_error: "Kunde inte spara: {error}",
+    create_error: "Kunde inte skapa listan: {error}",
+  },
+  "zh-Hans": {
+    food: "食物",
+    water: "水",
+    of_days: { other: "/ {n} 天" },
+    days_short: "{n} 天",
+    per_day: "每天 {amount}",
+    each: "每个 {amount}",
+    men: { other: "{n} 名男性" },
+    women: { other: "{n} 名女性" },
+    target: "目标天数",
+    day_less: "减少一天",
+    day_more: "增加一天",
+    one_less: "{name} 减一",
+    one_more: "{name} 加一",
+    edit: "编辑 {name}",
+    add_food: "添加食物",
+    add_bottles: "添加瓶装水",
+    name: "名称",
+    portion: "份量（克）",
+    kcal_per_100g: "每 100 克千卡",
+    litres_each: "每瓶升数",
+    add: "添加",
+    save: "保存",
+    cancel: "取消",
+    remove: "删除",
+    empty_food: "还没有食物。请在下方添加。",
+    empty_water: "还没有水。请在下方添加瓶子规格。",
+    loading: "加载中…",
+    nobody: "请至少设置一名男性或女性。",
+    missing: "{entity} 尚不存在。",
+    create: "创建“{name}”列表",
+    ask_admin: "请管理员添加名为“{name}”的 Local To-do 列表。",
+    save_error: "保存失败：{error}",
+    create_error: "无法创建列表：{error}",
+  },
+};
+
+// The text for a BCP 47 locale: `overrides`, then its language-REGION, then its
+// language-Script, then its language, then English. Only the script comes from
+// maximize(), which would also turn plain `pt` into pt-BR.
+const translate = (locale, overrides) => {
+  const tag = new Intl.Locale(locale);
+  const { language, region } = tag;
+  const { script } = tag.maximize();
+  return Object.assign(
+    {},
+    STRINGS.en,
+    STRINGS[language],
+    STRINGS[language + "-" + script],
+    STRINGS[language + "-" + region],
+    overrides
+  );
+};
+
+// A function replacement, so a `$` in a name is taken literally.
+const fill = (template, values) => template.replace(/\{(\w+)\}/g, (_, k) => values[k]);
+
+// The form of `forms` (a string, or a mapping by plural category) for count
+// `n`, with `{n}` filled in.
+const plural = (forms, n, locale) => {
+  const form = typeof forms === "string" ? forms : forms[new Intl.PluralRules(locale).select(n)] ?? forms.other;
+  return fill(form, { n: fmtNumber(n, locale) });
+};
 
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -27,26 +416,33 @@ const parse = (description) => {
 };
 
 const num = (v, min = 0) => Math.max(min, Number(v) || 0);
-const fmtKcal = (k) => Math.round(k).toLocaleString("en-GB") + " kcal";
-const fmtLitres = (l) => (Math.round(l * 10) / 10).toLocaleString("en-GB") + " L";
+
+// "always": Polish and others otherwise group 12 500 but not 1800, which
+// misaligns a column of amounts.
+const fmtNumber = (v, locale = DEFAULT_LOCALE, digits = 0) =>
+  v.toLocaleString(locale, { maximumFractionDigits: digits, useGrouping: "always" });
+const fmtKcal = (k, locale) => fmtNumber(Math.round(k), locale) + " kcal";
+const fmtLitres = (l, locale) => fmtNumber(Math.round(l * 10) / 10, locale, 1) + " L";
 // Rounded down, so the card never promises a day that isn't there.
+const fmtDays = (d, locale) => (d >= 10 ? fmtNumber(Math.floor(d), locale) : fmtNumber(Math.floor(d * 10) / 10, locale, 1));
+
 // The name Local To-do needs to create `entity`: it derives the entity id from
 // the list's name, so todo.food_stockpile comes from "Food stockpile".
 const listName = (entity) => {
   const s = entity.split(".")[1].replace(/_/g, " ");
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
-const fmtDays = (d) => (d >= 10 ? Math.floor(d).toString() : (Math.floor(d * 10) / 10).toString());
 
 // What makes each card different. `fields` are the figures an item stores
 // besides its count, in the order the add/edit form asks for them; an item
-// belongs to the card when its description has every one of them.
+// belongs to the card when its description has every one of them. Text is
+// named by its STRINGS key.
 const KINDS = {
   food: {
     tag: "food-stockpile-card",
     name: "Food stockpile",
     description: "Days of food in stock against a target, counted from a to-do list",
-    title: "Food",
+    title: "food",
     entity: "todo.food_stockpile",
     settings: "Food stockpile settings",
     defaultTarget: 30,
@@ -55,18 +451,18 @@ const KINDS = {
     perWoman: 2000,
     fmt: fmtKcal,
     fields: [
-      { key: "portion_g", label: "Portion (g)", min: 1 },
-      { key: "kcal_per_100g", label: "kcal per 100 g", min: 0 },
+      { key: "portion_g", label: "portion", min: 1 },
+      { key: "kcal_per_100g", label: "kcal_per_100g", min: 0 },
     ],
     each: (f) => (f.portion_g * f.kcal_per_100g) / 100,
-    add: "Add food",
-    empty: "No food yet. Add one below.",
+    add: "add_food",
+    empty: "empty_food",
   },
   water: {
     tag: "water-stockpile-card",
     name: "Water stockpile",
     description: "Days of water in stock against a target, counted from a to-do list",
-    title: "Water",
+    title: "water",
     entity: "todo.water_stockpile",
     settings: "Water stockpile settings",
     defaultTarget: 7,
@@ -75,10 +471,10 @@ const KINDS = {
     perMan: 4,
     perWoman: 4,
     fmt: fmtLitres,
-    fields: [{ key: "litres", label: "Litres each", min: 0.1 }],
+    fields: [{ key: "litres", label: "litres_each", min: 0.1 }],
     each: (f) => f.litres,
-    add: "Add bottles",
-    empty: "No water yet. Add a bottle size below.",
+    add: "add_bottles",
+    empty: "empty_water",
   },
 };
 
@@ -102,12 +498,10 @@ const readItems = (kind, items) => {
 };
 
 // Who the card counts for, from its config, and what they need a day between them.
-const household = (kind, config) => {
+const household = (kind, config, t = STRINGS.en, locale = DEFAULT_LOCALE) => {
   const men = Math.floor(num(config.men ?? 1));
   const women = Math.floor(num(config.women ?? 1));
-  const people = [men && `${men} ${men === 1 ? "man" : "men"}`, women && `${women} ${women === 1 ? "woman" : "women"}`]
-    .filter(Boolean)
-    .join(" · ");
+  const people = [men && plural(t.men, men, locale), women && plural(t.women, women, locale)].filter(Boolean).join(" · ");
   return { men, women, people, perDay: men * kind.perMan + women * kind.perWoman };
 };
 
@@ -116,6 +510,31 @@ const itemJSON = (kind, row) => {
   for (const f of kind.fields) v[f.key] = row[f.key];
   v.count = row.count;
   return JSON.stringify(v);
+};
+
+// Throws on config the card can't use; the message shows in the dashboard.
+const checkConfig = (kind, config) => {
+  if (!config?.entity) throw new Error(`Set entity to a to-do list, e.g. ${kind.entity}`);
+  for (const k of ["men", "women"]) {
+    if (config[k] != null && !(Number.isInteger(config[k]) && config[k] >= 0)) {
+      throw new Error(`${kind.tag}: \`${k}\` must be a whole number, 0 or more`);
+    }
+  }
+  if (config.locale != null) {
+    try {
+      new Intl.Locale(config.locale);
+    } catch {
+      throw new Error(`${kind.tag}: \`locale\` must be a BCP 47 tag, such as de-DE`);
+    }
+  }
+  if (config.strings != null) {
+    if (typeof config.strings !== "object" || Array.isArray(config.strings)) {
+      throw new Error(`${kind.tag}: \`strings\` must be a mapping`);
+    }
+    for (const k of Object.keys(config.strings)) {
+      if (!(k in STRINGS.en)) throw new Error(`${kind.tag}: \`strings\` has no key '${k}'`);
+    }
+  }
 };
 
 const STYLE = `
@@ -158,31 +577,42 @@ const STYLE = `
   @container (max-width: 360px) { form { grid-template-columns: 1fr 1fr; } .field-name { grid-column: 1 / -1; } }
 `;
 
+// The visual editor's fields. Labels are in English, as Home Assistant gives
+// a config form no way to learn the language.
+const editorForm = (kind) => ({
+  schema: [
+    { name: "entity", required: true, selector: { entity: { domain: "todo" } } },
+    { name: "title", selector: { text: {} } },
+    {
+      type: "grid",
+      name: "",
+      schema: [
+        { name: "men", selector: { number: { min: 0, max: 20, step: 1, mode: "box" } } },
+        { name: "women", selector: { number: { min: 0, max: 20, step: 1, mode: "box" } } },
+      ],
+    },
+    { name: "locale", selector: { text: {} } },
+  ],
+  computeLabel: (s) =>
+    ({
+      entity: "To-do list",
+      title: "Title",
+      men: `Adult men (${kind.fmt(kind.perMan)} a day each)`,
+      women: `Adult women (${kind.fmt(kind.perWoman)} a day each)`,
+      locale: "Locale, such as de-DE (default: Home Assistant's language)",
+    })[s.name],
+});
+
 class StockpileCard extends HTMLElement {
   // Set by each card's subclass to one of KINDS.
   static kind;
 
   static getConfigForm() {
-    const kind = this.kind;
-    return {
-      schema: [
-        { name: "entity", required: true, selector: { entity: { domain: "todo" } } },
-        { name: "title", selector: { text: {} } },
-        { name: "men", selector: { number: { min: 0, max: 20, step: 1, mode: "box" } } },
-        { name: "women", selector: { number: { min: 0, max: 20, step: 1, mode: "box" } } },
-      ],
-      computeLabel: (s) =>
-        ({
-          entity: "To-do list",
-          title: "Title",
-          men: `Adult men (${kind.fmt(kind.perMan)} a day each)`,
-          women: `Adult women (${kind.fmt(kind.perWoman)} a day each)`,
-        })[s.name],
-    };
+    return editorForm(this.kind);
   }
 
   static getStubConfig() {
-    return { entity: this.kind.entity };
+    return { entity: this.kind.entity, men: 1, women: 1 };
   }
 
   constructor() {
@@ -202,7 +632,7 @@ class StockpileCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config?.entity) throw new Error(`Set entity to a to-do list, e.g. ${this._kind.entity}`);
+    checkConfig(this._kind, config);
     const changed = this._config?.entity !== config.entity;
     this._config = config;
     this._build();
@@ -213,16 +643,27 @@ class StockpileCard extends HTMLElement {
   set hass(hass) {
     const first = !this._hass;
     const existed = this._exists();
+    const locale = this._locale();
     this._hass = hass;
     // A list created after the card loaded needs a fresh subscription.
     if (first || this._exists() !== existed) {
       this._resubscribe();
+      this._update();
+    } else if (this._locale() !== locale) {
       this._update();
     }
   }
 
   _exists() {
     return Boolean(this._hass && this._config && this._hass.states[this._config.entity]);
+  }
+
+  _locale() {
+    return this._config?.locale || this._hass?.locale?.language || DEFAULT_LOCALE;
+  }
+
+  _strings() {
+    return translate(this._locale(), this._config?.strings);
   }
 
   connectedCallback() {
@@ -274,7 +715,7 @@ class StockpileCard extends HTMLElement {
     return this._hass
       .callService("todo", service, data, { entity_id: this._config.entity })
       .catch((e) => {
-        this._error = "Couldn't save: " + (e?.message || e);
+        this._error = fill(this._strings().save_error, { error: e?.message || e });
         this._update();
         throw e;
       });
@@ -292,7 +733,7 @@ class StockpileCard extends HTMLElement {
       });
       if (done.type !== "create_entry") throw new Error(done.reason || "Local To-do didn't create the list");
     } catch (e) {
-      this._error = "Couldn't create the list: " + (e?.body?.message || e?.message || e);
+      this._error = fill(this._strings().create_error, { error: e?.body?.message || e?.message || e });
     }
     this._creating = false;
     this._update();
@@ -342,6 +783,8 @@ class StockpileCard extends HTMLElement {
     });
   }
 
+  // The form and the add button are built once, so a half-typed entry survives
+  // updates; their text is set by _update() through data-t, a STRINGS key.
   _build() {
     if (this._built) return;
     this._built = true;
@@ -351,14 +794,14 @@ class StockpileCard extends HTMLElement {
       <ha-card>
         <div class="summary"></div>
         <ul class="list"></ul>
-        <div class="foot"><button type="button" class="add">${esc(kind.add)}</button></div>
+        <div class="foot"><button type="button" class="add" data-t="${kind.add}"></button></div>
         <form hidden style="--fields: ${kind.fields.length}">
-          <label class="field-name">Name<input name="item_name" required maxlength="80" autocomplete="off"></label>
-          ${kind.fields.map((f) => `<label>${esc(f.label)}<input name="${f.key}" type="number" min="${f.min}" step="any" required></label>`).join("")}
+          <label class="field-name"><span data-t="name"></span><input name="item_name" required maxlength="80" autocomplete="off"></label>
+          ${kind.fields.map((f) => `<label><span data-t="${f.label}"></span><input name="${f.key}" type="number" min="${f.min}" step="any" required></label>`).join("")}
           <div class="actions">
-            <button type="submit" class="primary save">Add</button>
-            <button type="button" class="cancel">Cancel</button>
-            <button type="button" class="danger remove" hidden>Remove</button>
+            <button type="submit" class="primary save" data-t="add"></button>
+            <button type="button" class="cancel" data-t="cancel"></button>
+            <button type="button" class="danger remove" data-t="remove" hidden></button>
           </div>
         </form>
       </ha-card>`;
@@ -413,17 +856,17 @@ class StockpileCard extends HTMLElement {
       this._form.elements.item_name.value = r.name;
       for (const f of this._kind.fields) this._form.elements[f.key].value = r[f.key];
     }
-    this._form.querySelector(".save").textContent = r ? "Save" : "Add";
+    this._form.querySelector(".save").dataset.t = r ? "save" : "add";
     this._form.querySelector(".remove").hidden = !r;
     this._form.hidden = false;
-    this.shadowRoot.querySelector(".foot").hidden = true;
+    this._update();
     this._form.elements.item_name.focus();
   }
 
   _closeForm() {
     this._editing = null;
     this._form.hidden = true;
-    this.shadowRoot.querySelector(".foot").hidden = false;
+    this._update();
   }
 
   _update() {
@@ -432,15 +875,20 @@ class StockpileCard extends HTMLElement {
     const root = this.shadowRoot;
     const summary = root.querySelector(".summary");
     const list = root.querySelector(".list");
+    const locale = this._locale();
+    const t = this._strings();
+    root.querySelector("ha-card").setAttribute("lang", locale);
+    for (const el of root.querySelectorAll("[data-t]")) el.textContent = t[el.dataset.t];
+    const title = this._config.title ?? t[kind.title];
     if (this._hass && !this._exists()) {
       const name = listName(this._config.entity);
       summary.innerHTML = `
-        <div class="title">${esc(this._config.title ?? kind.title)}</div>
-        <p class="empty">${esc(this._config.entity)} doesn't exist yet.</p>
+        <div class="title">${esc(title)}</div>
+        <p class="empty">${esc(fill(t.missing, { entity: this._config.entity }))}</p>
         ${
           this._hass.user?.is_admin
-            ? `<button type="button" class="primary create" ${this._creating ? "disabled" : ""}>Create the “${esc(name)}” list</button>`
-            : `<p class="empty">Ask an admin to add a Local To-do list called “${esc(name)}”.</p>`
+            ? `<button type="button" class="primary create" ${this._creating ? "disabled" : ""}>${esc(fill(t.create, { name }))}</button>`
+            : `<p class="empty">${esc(fill(t.ask_admin, { name }))}</p>`
         }
         ${this._error ? `<div class="error">${esc(this._error)}</div>` : ""}`;
       list.innerHTML = "";
@@ -454,24 +902,24 @@ class StockpileCard extends HTMLElement {
       return;
     }
     if (!this._loaded) {
-      summary.innerHTML = `<div class="empty">Loading…</div>`;
+      summary.innerHTML = `<div class="empty">${esc(t.loading)}</div>`;
       return;
     }
-    const { people, perDay } = household(kind, this._config);
+    const { people, perDay } = household(kind, this._config, t, locale);
     if (!perDay) {
-      summary.innerHTML = `<div class="error">Set men or women to at least 1.</div>`;
+      summary.innerHTML = `<div class="error">${esc(t.nobody)}</div>`;
       list.innerHTML = "";
       return;
     }
+    const fmt = (v) => kind.fmt(v, locale);
     const target = this._target();
     const goal = target * perDay;
     const rows = this._rows.map((r, i) => {
       const n = this._count(r);
       return { r, n, amount: n * kind.each(r), color: PALETTE[i % PALETTE.length] };
     });
-    const total = rows.reduce((t, x) => t + x.amount, 0);
+    const total = rows.reduce((sum, x) => sum + x.amount, 0);
     const days = total / perDay;
-    const title = this._config.title ?? kind.title;
     // Segments fill the bar up to the target; past it, they share the bar in proportion.
     const scale = Math.max(goal, total) || 1;
     const focused = root.activeElement;
@@ -480,17 +928,17 @@ class StockpileCard extends HTMLElement {
       <div class="head">
         <div>
           <div class="title">${esc(title)}</div>
-          <div class="days ${days < target ? "low" : "met"}">${fmtDays(days)}<small>of ${target} days</small></div>
-          <div class="amount">${kind.fmt(total)} / ${kind.fmt(goal)}</div>
-          <div class="amount">${people} · ${kind.fmt(perDay)} a day</div>
+          <div class="days ${days < target ? "low" : "met"}">${fmtDays(days, locale)}<small>${esc(plural(t.of_days, target, locale))}</small></div>
+          <div class="amount">${fmt(total)} / ${fmt(goal)}</div>
+          <div class="amount">${esc(people)} · ${esc(fill(t.per_day, { amount: fmt(perDay) }))}</div>
         </div>
-        <div class="target" role="group" aria-label="Target days">
-          <button type="button" data-target="-1" aria-label="One day less" ${target <= 1 ? "disabled" : ""}>−</button>
-          <output>${target}</output>
-          <button type="button" data-target="1" aria-label="One day more">+</button>
+        <div class="target" role="group" aria-label="${esc(t.target)}">
+          <button type="button" data-target="-1" aria-label="${esc(t.day_less)}" ${target <= 1 ? "disabled" : ""}>−</button>
+          <output>${fmtNumber(target, locale)}</output>
+          <button type="button" data-target="1" aria-label="${esc(t.day_more)}">+</button>
         </div>
       </div>
-      <div class="bar" role="img" aria-label="${kind.fmt(total)} of ${kind.fmt(goal)}">
+      <div class="bar" role="img" aria-label="${fmt(total)} / ${fmt(goal)}">
         ${rows.filter((x) => x.amount > 0).map((x) => `<span style="width:${(100 * x.amount) / scale}%;background:${x.color}" title="${esc(x.r.name)}"></span>`).join("")}
       </div>
       ${this._error ? `<div class="error">${esc(this._error)}</div>` : ""}`;
@@ -502,18 +950,18 @@ class StockpileCard extends HTMLElement {
             ({ r, n, amount, color }) => `
       <li data-uid="${esc(r.uid)}">
         <div class="name"><span class="dot" style="background:${color}"></span><span>${esc(r.name)}</span></div>
-        <div class="total">${kind.fmt(amount)} · ${fmtDays(amount / perDay)} d</div>
-        <div class="sub">${kind.fmt(kind.each(r))} each</div>
+        <div class="total">${fmt(amount)} · ${esc(fill(t.days_short, { n: fmtDays(amount / perDay, locale) }))}</div>
+        <div class="sub">${esc(fill(t.each, { amount: fmt(kind.each(r)) }))}</div>
         <div class="count">
-          <button type="button" class="edit" aria-label="Edit ${esc(r.name)}"><ha-icon icon="mdi:pencil"></ha-icon></button>
-          <button type="button" data-step="-1" aria-label="One less ${esc(r.name)}" ${n === 0 ? "disabled" : ""}>−</button>
-          <output>${n}</output>
-          <button type="button" data-step="1" aria-label="One more ${esc(r.name)}">+</button>
+          <button type="button" class="edit" aria-label="${esc(fill(t.edit, { name: r.name }))}"><ha-icon icon="mdi:pencil"></ha-icon></button>
+          <button type="button" data-step="-1" aria-label="${esc(fill(t.one_less, { name: r.name }))}" ${n === 0 ? "disabled" : ""}>−</button>
+          <output>${fmtNumber(n, locale)}</output>
+          <button type="button" data-step="1" aria-label="${esc(fill(t.one_more, { name: r.name }))}">+</button>
         </div>
       </li>`,
           )
           .join("")
-      : `<li class="empty">${esc(kind.empty)}</li>`;
+      : `<li class="empty">${esc(t[kind.empty])}</li>`;
     // Rows are rebuilt on each update, so put keyboard focus back on the button that was pressed.
     if (refocus) {
       const li = [...list.children].find((x) => x.dataset.uid === refocus[0]);

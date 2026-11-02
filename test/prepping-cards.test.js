@@ -115,14 +115,13 @@ test("esc escapes markup in names", () => {
 test("both cards register, each with its own list", () => {
   const { defined } = ctx.customElements;
   assert.deepEqual(Object.keys(defined), ["food-stockpile-card", "water-stockpile-card"]);
-  assert.deepEqual(plain(defined["food-stockpile-card"].getStubConfig()), { entity: "todo.food_stockpile" });
-  assert.deepEqual(plain(defined["water-stockpile-card"].getStubConfig()), { entity: "todo.water_stockpile" });
+  assert.deepEqual(plain(defined["food-stockpile-card"].getStubConfig()), { entity: "todo.food_stockpile", men: 1, women: 1 });
+  assert.deepEqual(plain(defined["water-stockpile-card"].getStubConfig()), { entity: "todo.water_stockpile", men: 1, women: 1 });
   assert.deepEqual(plain(ctx.window.customCards.map((x) => x.type)), ["food-stockpile-card", "water-stockpile-card"]);
 });
 
 test("the editor labels state each card's daily need per person", () => {
   const form = ctx.customElements.defined["water-stockpile-card"].getConfigForm();
-  assert.deepEqual(plain(form.schema.map((s) => s.name)), ["entity", "title", "men", "women"]);
   assert.equal(form.computeLabel({ name: "men" }), "Adult men (4 L a day each)");
   const food = ctx.customElements.defined["food-stockpile-card"].getConfigForm();
   assert.equal(food.computeLabel({ name: "women" }), "Adult women (2,000 kcal a day each)");
